@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <thread>
 #include <fstream>
+#include <sstream>
 
 #include <vector>
 #include <iomanip> // setprecision
@@ -11,6 +12,8 @@
 #include <sys/resource.h>
 
 #include <SDL/SDL.h>
+#include <algorithm>
+#include <zmq.hpp>
 
 #include "utils.h"
 #include "gnuplot.h"
@@ -22,7 +25,7 @@
 
 using namespace std;
 using namespace chrono;
-
+using namespace zmq;
 
 int kbhit()
 {
@@ -35,6 +38,16 @@ int kbhit()
 
 int main()
 {
+    //Code to manage the interactivity with python
+    context_t context(3);
+    socket_t publisher(context, ZMQ_PUB);
+    socket_t subscriber(context, ZMQ_SUB);
+    publisher.bind("ipc:///tmp/features_decoder.pipe");
+    //publisher.setsockopt(ZMQ_PUB,NULL,0);
+    subscriber.connect("ipc:///tmp/ballpos_decoder.pipe");
+    subscriber.setsockopt(ZMQ_SUBSCRIBE, NULL, 0);
+
+
     // change the proiority and scheduler of process
     struct sched_param param;
     param.sched_priority = 99;
@@ -62,7 +75,7 @@ int main()
     size_t dft_points = 1024; // points
 
   cout<<"l0"<<endl;
-    Fft<double> fft(dft_points, Fft<double>::windowFunc::NONE, sampling_frq, numChannelsWOT);
+    Fft<double> fft(dft_points, Fft<double>::windowFunc::HAMMING, sampling_frq, numChannelsWOT);
   cout<<"l1"<<endl;
     vector<vector<double> > powers(numChannels);
     vector<vector<double> > phases(numChannels);
@@ -156,7 +169,7 @@ int main()
          }
 
          loop += 1;
-         if (loop > 1) {
+         if (loop > 10) {
            clock_gettime(CLOCK_REALTIME, &requestStart);
            if (fft.Process()) {
              fft.GetPower(powers);
@@ -167,7 +180,33 @@ int main()
 
              float mean_power = pwrPlt[2];
                     //- left_av_mu_power;
-            //cb_power.put(mean_power);
+             // publish computed powers using ZMQ
+             stringstream message;
+             //message<<pwrPlt[2]<<",";
+             //message<<pwrPlt[3]<<",";
+             message<< mean_power <<",";
+             message<<endl;
+             cout << message <<endl;
+             zmq::message_t zmq_message(message.str().length());
+             memcpy((char *) zmq_message.data(), message.str().c_str(), message.str().length());
+             publisher.send(zmq_message);
+             cout<<"You passed the publisher"<<endl;
+             // receive ball pos from python
+             zmq::message_t ball_msg;
+             subscriber.recv(&ball_msg, ZMQ_NOBLOCK);
+             cout<<"You passed the subscriber"<<endl;
+             // convert reveived data into c++ string/sstream
+             string feat_str(((char *)ball_msg.data()));
+             stringstream ss;
+             ss.str(feat_str);
+             cout<<"You passed the string"<<endl;
+             float x=0;
+             ss>>x;
+             cout<<"Python sent: "<<x<<endl;
+
+
+
+             //cb_power.put(mean_power);
 
             // update plot
 
