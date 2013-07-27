@@ -21,11 +21,11 @@ context = zmq.Context(3)
 
 #
 bsocket = context.socket(zmq.PUB)
-bsocket.bind("ipc:///tmp/ballpos_decoder.pipe")
+bsocket.bind("tcp://127.0.0.1:50000")
 
 #
 fsocket = context.socket(zmq.SUB)
-fsocket.connect ("ipc:///tmp/features_decoder.pipe")
+fsocket.connect ("tcp://127.0.0.1:50001")
 fsocket.setsockopt(zmq.SUBSCRIBE, '' ) # subscribe with no filter, receive all messages
 zmq_msg = "1"
 feat_buff = collections.deque(maxlen = 10)

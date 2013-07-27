@@ -18,10 +18,8 @@
 #include "utils.h"
 #include "gnuplot.h"
 #include "eeg_receiver.h"
-
 #include "fft.h"
-#include "eeg_receiver.h"
-#include "gnuplot.h"
+
 
 using namespace std;
 using namespace chrono;
@@ -39,22 +37,22 @@ int kbhit()
 int main()
 {
     //Code to manage the interactivity with python
-    context_t context(3);
-    socket_t publisher(context, ZMQ_PUB);
-    socket_t subscriber(context, ZMQ_SUB);
-    publisher.bind("ipc:///tmp/features_decoder.pipe");
+    context_t context_py(3);
+    socket_t publisher(context_py, ZMQ_PUB);
+    socket_t subscriber(context_py, ZMQ_SUB);
+    publisher.bind("tcp://127.0.0.1:50001");
     //publisher.setsockopt(ZMQ_PUB,NULL,0);
-    subscriber.connect("ipc:///tmp/ballpos_decoder.pipe");
+    subscriber.connect("tcp://127.0.0.1:50000");
     subscriber.setsockopt(ZMQ_SUBSCRIBE, NULL, 0);
-
+    stringstream message;
 
     // change the proiority and scheduler of process
-    struct sched_param param;
+    /*struct sched_param param;
     param.sched_priority = 99;
     if (sched_setscheduler(0, SCHED_FIFO, & param) != 0) {
       perror("sched_setscheduler");
       exit(EXIT_FAILURE);
-    }
+    }*/
 
     // data to be received
     double time;
@@ -140,6 +138,7 @@ int main()
     int active_counter=0;
     double y_position=0.0;
     int target = 0;
+    sleep(5);
     //625 and 425 are the graphical lower and upper bounds respectively, if the boxes are shifted
     //these numbers have to be changed
     //*********************************************************************
@@ -185,6 +184,7 @@ int main()
              //message<<pwrPlt[2]<<",";
              //message<<pwrPlt[3]<<",";
              message<< mean_power <<",";
+             message<< mean_power <<",";
              message<<endl;
              cout << message <<endl;
              zmq::message_t zmq_message(message.str().length());
@@ -193,7 +193,7 @@ int main()
              cout<<"You passed the publisher"<<endl;
              // receive ball pos from python
              zmq::message_t ball_msg;
-             subscriber.recv(&ball_msg, ZMQ_NOBLOCK);
+             subscriber.recv(&ball_msg);
              cout<<"You passed the subscriber"<<endl;
              // convert reveived data into c++ string/sstream
              string feat_str(((char *)ball_msg.data()));
